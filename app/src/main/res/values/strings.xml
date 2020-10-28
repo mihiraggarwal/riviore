@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">riviore</string>
+    <string name="profile">Want to join the community? \nSign up now</string>
+    <string name="login">Already a part of the community? \nLogin here</string>
+    <string name="official">Are you an official? \nLogin here</string>
+    <string-array name="spinner_ar">
+        <item>Choose department</item>
+        <item>Central water commission</item>
+        <item>Department of Water Resources</item>
+        <item>India Environmental Portal</item>
+    </string-array>
+</resources>

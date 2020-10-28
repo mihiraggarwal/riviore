@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:icon="@drawable/ic_map_black_24dp"
+        android:enabled="true"
+        android:title="Map"
+        android:id="@+id/map_menu"/>
+<!--    <item-->
+<!--        android:icon="@drawable/ic_highlight_black_24dp"-->
+<!--        android:enabled="true"-->
+<!--        android:title="Projects"-->
+<!--        android:id="@+id/project_menu"/>-->
+    <item
+        android:icon="@drawable/ic_person_black_24dp"
+        android:enabled="true"
+        android:title="Profile"
+        android:id="@+id/profile_menu"/>
+
+
+</menu>

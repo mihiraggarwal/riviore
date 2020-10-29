@@ -9,22 +9,42 @@ import android.Manifest;
 import android.app.Dialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.FirebaseApiNotAvailableException;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
     BottomNavigationView bottomNavigationView;
@@ -37,6 +57,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Boolean mLocationPermissionGranted = false;
     private GoogleMap mMap;
     private FirebaseAuth mAuth;
+    private FusedLocationProviderClient mFusedLocationProviderClient;
+    private EditText mSearch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +67,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         mAuth = FirebaseAuth.getInstance();
         bottomNavigationView = findViewById(R.id.bottom_nav);
+	mSearch = findViewById(R.id.search_et);
 
         BottomNavigationView.OnNavigationItemSelectedListener onNavigationItemSelectedListener =
                 new BottomNavigationView.OnNavigationItemSelectedListener() {
@@ -56,7 +79,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             case R.id.profile_menu:
                                 FirebaseUser user = mAuth.getCurrentUser();
                                 if (user != null) {
-                                    
+                                    startActivity(new Intent(getApplicationContext(), UserActivity.class));
                                 } else {
                                     startActivity(new Intent(getApplicationContext(), ProfileActivity.class));
                                 }
@@ -73,8 +96,110 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    public void goToProfile(View view) {
-        startActivity(new Intent(MainActivity.this, ProfileActivity.class));
+        private void init() {
+        Log.d(TAG, "init: running");
+        mSearch.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView textView, int i, KeyEvent keyEvent) {
+                if (i == EditorInfo.IME_ACTION_SEARCH || i == EditorInfo.IME_ACTION_DONE
+                || keyEvent.getAction() == KeyEvent.ACTION_DOWN || keyEvent.getAction() == KeyEvent.KEYCODE_ENTER) {
+                    geoLocate();
+                    Log.d(TAG, "onEditorAction: geolocate called");
+                }
+                return false;
+            }
+        });
+    }
+
+    private void geoLocate() {
+        Log.d(TAG, "geoLocate: running");
+        String searchStr = mSearch.getText().toString();
+        Geocoder geocoder = new Geocoder(MainActivity.this);
+        List<Address> list = new ArrayList<>();
+        try {
+            list = geocoder.getFromLocationName(searchStr, 1);
+        }
+        catch (IOException e) {
+            Log.d(TAG, "geoLocate: " + e.getMessage());
+        }
+        if (list.size() > 0) {
+            Address address = list.get(0);
+            Log.d(TAG, "geoLocate: location = " + address.toString());
+            moveCamera(new LatLng(address.getLatitude(), address.getLongitude()), DEFAULT_ZOOM, address.getAddressLine(0));
+        }
+    }
+
+    private void getDeviceLocation() {
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        try {
+            if (mLocationPermissionGranted) {
+                final Task location = mFusedLocationProviderClient.getLastLocation();
+                location.addOnCompleteListener(new OnCompleteListener() {
+                    @Override
+                    public void onComplete(@NonNull Task task) {
+                        if (task.isSuccessful()) {
+                            Log.d(TAG, "onComplete: location found");
+                            Location currentLocation = (Location) task.getResult();
+                            moveCamera(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()),
+                                    DEFAULT_ZOOM, "My Location");
+                        }
+                        else {
+                            Toast.makeText(MainActivity.this, "Unable to get current location", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+            }
+        }
+        catch (SecurityException e) {
+            Log.d(TAG, "getDeviceLocation: " + e.getMessage());
+        }
+    }
+
+    private void moveCamera(LatLng latLng, float zoom, final String title) {
+        Log.d(TAG, "moveCamera: camera moved to lat: " + latLng.latitude + "lng: " + latLng.longitude);
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
+        MarkerOptions markerOptions = new MarkerOptions().position(latLng).title(title);
+        mMap.addMarker(markerOptions);
+        if (title == "My Location") {
+        }
+        else {
+            mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+                @Override
+                public void onMapLongClick(LatLng latLng) {
+                    FirebaseUser user = mAuth.getCurrentUser();
+                    if (user != null) {
+                        FirebaseFirestore db = FirebaseFirestore.getInstance();
+                        db.collection("Users")
+                                .whereEqualTo("uid", user.getUid())
+                                .get()
+                                .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                                    @Override
+                                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                        if (task.isSuccessful()){
+                                            for (QueryDocumentSnapshot documentSnapshot:task.getResult()) {
+                                                if (documentSnapshot.getBoolean("official")) {
+                                                    Intent intent = new Intent(MainActivity.this, EditDetailsActivity.class);
+                                                    intent.putExtra("title", title);
+                                                    startActivity(intent);
+                                                } else {
+                                                    Intent intent = new Intent(MainActivity.this, DetailsActivity.class);
+                                                    intent.putExtra("title", title);
+                                                    startActivity(intent);
+                                                }
+                                            }
+                                        }
+                                    }
+                                });
+
+                    }
+                    else {
+                        Intent intent = new Intent(MainActivity.this, DetailsActivity.class);
+                        intent.putExtra("title", title);
+                        startActivity(intent);
+                    }
+                }
+            });
+        }
     }
 
     public boolean isServicesOk() {
@@ -98,6 +223,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (ContextCompat.checkSelfPermission(this.getApplicationContext(), FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             if (ContextCompat.checkSelfPermission(this.getApplicationContext(), COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 mLocationPermissionGranted = true;
+		initMap();
                 Log.d(TAG, "getLocationPermissions: perms given");
             } else {
                 ActivityCompat.requestPermissions(this, permissions, LOCATION_PERMISSION_REQUEST);
@@ -139,5 +265,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
         Log.d(TAG, "onMapReady: map ready");
+
+        if (mLocationPermissionGranted) {
+            getDeviceLocation();
+            mMap.setMyLocationEnabled(true);
+            mMap.getUiSettings().setMyLocationButtonEnabled(false);
+            init();
+            Log.d(TAG, "onMapReady: init called");
+        }
     }
 }

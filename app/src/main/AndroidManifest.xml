@@ -14,6 +14,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <activity android:name=".MainActivity" />
+        <activity android:name=".DonateActivity" />
 	<activity android:name=".EditDetailsActivity" />
         <activity android:name=".DetailsActivity" />
         <activity android:name=".UserActivity" />
@@ -28,7 +30,7 @@
             android:value="AIzaSyA7xASRXFDbhxNMo0jqioT5aw_wv-yP7uI" />
 
         <activity android:name=".ProfileActivity" />
-        <activity android:name=".MainActivity">
+        <activity android:name=".SplashScreenActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
